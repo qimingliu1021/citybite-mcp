@@ -66,13 +66,15 @@ server.tool(
     let restaurants: Restaurant[];
 
     if (cached) {
+      console.log(`[search-city-food] Cache hit for ${city}`);
       restaurants = cached.restaurants;
     } else {
       try {
+        console.log(`[search-city-food] Searching for restaurants in ${city}...`);
         const searchResults = await getTavily().search(
           `best local authentic restaurants to try in ${city} food guide`,
           {
-            searchDepth: "advanced",
+            searchDepth: "basic",
             maxResults: 8,
             includeAnswer: true,
           }
@@ -82,6 +84,7 @@ server.tool(
           .map((r) => `Title: ${r.title}\nURL: ${r.url}\nSnippet: ${r.content}`)
           .join("\n\n");
 
+        console.log(`[search-city-food] Extracting data with OpenAI for ${city}...`);
         const completion = await getOpenAI().chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
@@ -142,6 +145,7 @@ server.tool(
     let dishes: Dish[];
 
     if (cached) {
+      console.log(`[get-menu-dishes] Cache hit for ${restaurantName}`);
       dishes = cached.dishes;
     } else {
       try {
@@ -150,9 +154,10 @@ server.tool(
         // Try to fetch menu text from the restaurant URL
         if (url && url.startsWith("http")) {
           try {
+            console.log(`[get-menu-dishes] Fetching website content for ${restaurantName}...`);
             const res = await fetch(url, {
               headers: { "User-Agent": "Mozilla/5.0 (compatible; CityBitesBot/1.0)" },
-              signal: AbortSignal.timeout(8000),
+              signal: AbortSignal.timeout(6000),
             });
             const html = await res.text();
             const root = parse(html);
@@ -167,6 +172,7 @@ server.tool(
 
         // If no menu text, search for the menu
         if (!menuContext && process.env.TAVILY_API_KEY) {
+          console.log(`[get-menu-dishes] Searching web for ${restaurantName} dishes...`);
           const menuSearch = await getTavily().search(
             `${restaurantName} ${city} menu dishes food`,
             { maxResults: 4, searchDepth: "basic" }
@@ -175,6 +181,7 @@ server.tool(
             menuSearch.results.map((r) => r.content).join("\n");
         }
 
+        console.log(`[get-menu-dishes] Identifying dishes with OpenAI for ${restaurantName}...`);
         const completion = await getOpenAI().chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
@@ -195,12 +202,16 @@ server.tool(
 
         // Fetch Unsplash images for each dish
         if (process.env.UNSPLASH_ACCESS_KEY) {
+          console.log(`[get-menu-dishes] Fetching images from Unsplash for ${restaurantName}...`);
           dishes = await Promise.all(
             dishes.map(async (dish) => {
               try {
                 const imgRes = await fetch(
                   `https://api.unsplash.com/search/photos?query=${encodeURIComponent(dish.imageQuery)}&per_page=1&orientation=landscape`,
-                  { headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
+                  { 
+                    headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` },
+                    signal: AbortSignal.timeout(5000)
+                  }
                 );
                 const imgData = (await imgRes.json()) as { results?: { urls?: { small?: string } }[] };
                 return { ...dish, imageUrl: imgData.results?.[0]?.urls?.small ?? "" };
@@ -255,14 +266,16 @@ server.tool(
     let centerLng: number;
 
     if (cached) {
+      console.log(`[build-taste-itinerary] Cache hit for ${city}`);
       stops = cached.stops;
       centerLat = cached.centerLat;
       centerLng = cached.centerLng;
     } else {
       try {
+        console.log(`[build-taste-itinerary] Searching cultural context for ${city}...`);
         // Search for cultural food context
         const [foodSearch, cultureSearch] = await Promise.all([
-          getTavily().search(`${city} iconic local food dishes must try authentic`, { maxResults: 5, searchDepth: "advanced" }),
+          getTavily().search(`${city} iconic local food dishes must try authentic`, { maxResults: 5, searchDepth: "basic" }),
           getTavily().search(`${city} food culture history traditional cuisine`, { maxResults: 4, searchDepth: "basic" }),
         ]);
 
@@ -271,6 +284,7 @@ server.tool(
           ...cultureSearch.results.map((r) => r.content),
         ].join("\n\n").slice(0, 5000);
 
+        console.log(`[build-taste-itinerary] Composing itinerary with OpenAI for ${city}...`);
         const prefNote = preferences ? `\nUser preferences: ${preferences}` : "";
 
         const completion = await getOpenAI().chat.completions.create({
@@ -310,6 +324,7 @@ Spread the stops geographically across different neighborhoods. Return ONLY vali
         const rawStops = (parsed.stops ?? []) as (ItineraryStop & { imageQuery?: string })[];
 
         // Fetch Unsplash images for each stop's dish
+        console.log(`[build-taste-itinerary] Fetching images from Unsplash for ${city}...`);
         stops = await Promise.all(
           rawStops.map(async (stop) => {
             let dishImageUrl = "";
@@ -317,7 +332,10 @@ Spread the stops geographically across different neighborhoods. Return ONLY vali
               try {
                 const imgRes = await fetch(
                   `https://api.unsplash.com/search/photos?query=${encodeURIComponent(stop.imageQuery)}&per_page=1&orientation=landscape`,
-                  { headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
+                  { 
+                    headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` },
+                    signal: AbortSignal.timeout(5000)
+                  }
                 );
                 const imgData = (await imgRes.json()) as { results?: { urls?: { small?: string } }[] };
                 dishImageUrl = imgData.results?.[0]?.urls?.small ?? "";
@@ -390,18 +408,20 @@ server.tool(
     let centerLng: number;
 
     if (cached) {
+      console.log(`[explore-city-food-map] Cache hit for ${city}`);
       stops = cached.stops;
       days = cached.days;
       centerLat = cached.centerLat;
       centerLng = cached.centerLng;
     } else {
       try {
+        console.log(`[explore-city-food-map] Searching restaurants for ${city}...`);
         const prefNote = preferences ? ` focusing on ${preferences}` : "";
 
         // Step 1: Search for restaurants
         const searchResults = await getTavily().search(
           `best local authentic restaurants food crawl in ${city}${prefNote}`,
-          { searchDepth: "advanced", maxResults: 10, includeAnswer: true }
+          { searchDepth: "basic", maxResults: 10, includeAnswer: true }
         );
 
         const snippets = searchResults.results
@@ -409,6 +429,7 @@ server.tool(
           .join("\n\n");
 
         // Step 2: Extract restaurants organized by day
+        console.log(`[explore-city-food-map] Planning ${dayCount} days with OpenAI for ${city}...`);
         const completion = await getOpenAI().chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
@@ -449,6 +470,7 @@ Each day should have 4 stops (morning, lunch, dinner, late). Use different resta
         const rawDays = (parsed.days ?? []) as ({ day: number; label: string; stops: (MapStop & { imageQuery?: string })[] })[];
 
         // Step 3: Fetch Unsplash images + build flat list
+        console.log(`[explore-city-food-map] Fetching images from Unsplash for ${city}...`);
         days = [];
         stops = [];
 
@@ -460,7 +482,10 @@ Each day should have 4 stops (morning, lunch, dinner, late). Use different resta
                 try {
                   const imgRes = await fetch(
                     `https://api.unsplash.com/search/photos?query=${encodeURIComponent(stop.imageQuery)}&per_page=1&orientation=landscape`,
-                    { headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` } }
+                    { 
+                      headers: { Authorization: `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}` },
+                      signal: AbortSignal.timeout(5000)
+                    }
                   );
                   const imgData = (await imgRes.json()) as { results?: { urls?: { small?: string } }[] };
                   dishImageUrl = imgData.results?.[0]?.urls?.small ?? "";
