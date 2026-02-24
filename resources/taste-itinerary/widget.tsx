@@ -47,10 +47,10 @@ function useColors() {
   };
 }
 
-// Slot color palette
 const SLOT_COLORS: Record<string, string> = {
   "Morning Coffee": "#c98b2e",
   "Midday Snack": "#d4622a",
+  Lunch: "#d4622a",
   Dinner: "#8b3a62",
   "Late Bites": "#4a5899",
 };
@@ -58,25 +58,40 @@ const SLOT_COLORS: Record<string, string> = {
 const SLOT_ICONS: Record<string, string> = {
   "Morning Coffee": "☕",
   "Midday Snack": "🥙",
+  Lunch: "☀️",
   Dinner: "🍷",
   "Late Bites": "🌙",
 };
 
-// ── LeafletMap ────────────────────────────────────────────────────────────────
+// ── Map Stop type from explore-city-food-map ─────────────────────────────────
+
+interface MapStop {
+  name: string;
+  neighborhood?: string;
+  cuisineType?: string;
+  lat: number;
+  lng: number;
+  signatureDish: string;
+  dishDescription?: string;
+  dishImageUrl?: string;
+  whyLocal?: string;
+  timeSlot?: string;
+  timeRange?: string;
+}
+
+// ── Leaflet Map ───────────────────────────────────────────────────────────────
 
 const LeafletMap: React.FC<{
-  stops: ItineraryStop[];
+  stops: MapStop[];
   centerLat: number;
   centerLng: number;
   colors: ReturnType<typeof useColors>;
   highlightedIndex: number | null;
-  userLoc: { lat: number; lng: number } | null;
   onStopClick: (index: number) => void;
-}> = ({ stops, centerLat, centerLng, colors, highlightedIndex, userLoc, onStopClick }) => {
+}> = ({ stops, centerLat, centerLng, colors, highlightedIndex, onStopClick }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-  const userMarkerRef = useRef<any>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -110,11 +125,11 @@ const LeafletMap: React.FC<{
     const bounds: [number, number][] = [];
 
     stops.forEach((stop, index) => {
-      const slotColor = SLOT_COLORS[stop.timeSlot] ?? "#d4622a";
-      const slotIcon = SLOT_ICONS[stop.timeSlot] ?? "📍";
+      const slotColor = SLOT_COLORS[stop.timeSlot ?? ""] ?? "#d4622a";
+      const slotIcon = SLOT_ICONS[stop.timeSlot ?? ""] ?? "📍";
 
       const markerIcon = L.divIcon({
-        className: "citybites-itinerary-marker",
+        className: "citybites-map-marker",
         html: `<div style="
           width:36px;height:36px;border-radius:50%;
           background:${slotColor};color:#fff;
@@ -129,18 +144,18 @@ const LeafletMap: React.FC<{
       });
 
       const dishImgHtml = stop.dishImageUrl
-        ? `<img src="${stop.dishImageUrl}" alt="${stop.dish}" style="width:100%;height:90px;object-fit:cover;border-radius:8px;margin-bottom:8px;" onerror="this.style.display='none'" />`
+        ? `<img src="${stop.dishImageUrl}" alt="${stop.signatureDish}" style="width:100%;height:90px;object-fit:cover;border-radius:8px;margin-bottom:8px;" onerror="this.style.display='none'" />`
         : "";
 
       const popupContent = `
         <div style="font-family:system-ui,-apple-system,sans-serif;min-width:200px;max-width:250px;">
           ${dishImgHtml}
-          <div style="font-size:10px;font-weight:700;color:${slotColor};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">${slotIcon} ${stop.timeSlot} · ${stop.timeRange}</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:2px;">${stop.restaurantName}</div>
-          <div style="font-size:11px;color:#6b6560;margin-bottom:6px;">📍 ${stop.neighborhood}</div>
+          <div style="font-size:10px;font-weight:700;color:${slotColor};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">${slotIcon} ${stop.timeSlot ?? ""} · ${stop.timeRange ?? ""}</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:2px;">${stop.name}</div>
+          <div style="font-size:11px;color:#6b6560;margin-bottom:6px;">📍 ${stop.neighborhood ?? ""}</div>
           <div style="background:#fdf0e8;border-radius:6px;padding:6px 8px;">
-            <div style="font-size:12px;font-weight:700;color:#d4622a;">🍽️ ${stop.dish}</div>
-            <div style="font-size:11px;color:#6b6560;line-height:1.4;margin-top:2px;">${stop.dishDescription}</div>
+            <div style="font-size:12px;font-weight:700;color:#d4622a;">🍽️ ${stop.signatureDish}</div>
+            ${stop.dishDescription ? `<div style="font-size:11px;color:#6b6560;line-height:1.4;margin-top:2px;">${stop.dishDescription}</div>` : ""}
           </div>
         </div>
       `;
@@ -172,36 +187,8 @@ const LeafletMap: React.FC<{
       map.remove();
       mapInstanceRef.current = null;
       markersRef.current = [];
-      userMarkerRef.current = null;
     };
   }, [loaded, stops, centerLat, centerLng]);
-
-  // Update user location marker
-  useEffect(() => {
-    if (!loaded || !mapInstanceRef.current) return;
-    const L = (window as any).L;
-
-    if (userMarkerRef.current) {
-      mapInstanceRef.current.removeLayer(userMarkerRef.current);
-    }
-
-    if (userLoc) {
-      const userIcon = L.divIcon({
-        className: "citybites-user-marker",
-        html: `<div style="
-          width:16px;height:16px;border-radius:50%;
-          background:#2563eb;border:2px solid #fff;
-          box-shadow:0 0 0 4px rgba(37,99,235,0.3);
-          animation: pulse-user 2s infinite;
-        "></div>
-        <style>@keyframes pulse-user { 0% { box-shadow:0 0 0 0 rgba(37,99,235,0.4) } 70% { box-shadow:0 0 0 10px rgba(37,99,235,0) } 100% { box-shadow:0 0 0 0 rgba(37,99,235,0) } }</style>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-      });
-      userMarkerRef.current = L.marker([userLoc.lat, userLoc.lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(mapInstanceRef.current);
-      mapInstanceRef.current.panTo([userLoc.lat, userLoc.lng]);
-    }
-  }, [userLoc, loaded]);
 
   // Open popup when highlighted from timeline
   useEffect(() => {
@@ -215,7 +202,8 @@ const LeafletMap: React.FC<{
       ref={mapRef}
       style={{
         width: "100%",
-        height: 320,
+        height: "100%",
+        minHeight: 400,
         borderRadius: 16,
         overflow: "hidden",
         border: `1px solid ${colors.border}`,
@@ -235,15 +223,16 @@ const StopCard: React.FC<{
   onGetMenu: (stop: ItineraryStop) => void;
   isLoading: boolean;
   onHover: (index: number | null) => void;
-}> = ({ stop, index, isLast, colors, isHighlighted, onGetMenu, isLoading, onHover }) => {
+  compact?: boolean;
+}> = ({ stop, index, isLast, colors, isHighlighted, onGetMenu, isLoading, onHover, compact }) => {
   const [expanded, setExpanded] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const slotColor = SLOT_COLORS[stop.timeSlot] ?? "#d4622a";
-  const slotIcon = SLOT_ICONS[stop.timeSlot] ?? "🍽️";
+  const slotColor = SLOT_COLORS[stop.timeSlot ?? ""] ?? "#d4622a";
+  const slotIcon = SLOT_ICONS[stop.timeSlot ?? ""] ?? "🍽️";
 
   return (
     <div
-      style={{ display: "flex", gap: 16 }}
+      style={{ display: "flex", gap: compact ? 10 : 16 }}
       onMouseEnter={() => onHover(index)}
       onMouseLeave={() => onHover(null)}
     >
@@ -251,10 +240,10 @@ const StopCard: React.FC<{
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
         <div
           style={{
-            width: 32, height: 32, borderRadius: "50%",
+            width: compact ? 26 : 32, height: compact ? 26 : 32, borderRadius: "50%",
             backgroundColor: slotColor, color: "#fff",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 15, fontWeight: 800,
+            fontSize: compact ? 12 : 15, fontWeight: 800,
             border: isHighlighted ? `3px solid ${colors.text}` : "3px solid transparent",
             boxShadow: isHighlighted ? `0 0 0 3px ${slotColor}40` : "none",
             transition: "all 0.2s ease",
@@ -273,14 +262,14 @@ const StopCard: React.FC<{
           flex: 1,
           backgroundColor: isHighlighted ? colors.accentLight : colors.card,
           border: `1px solid ${isHighlighted ? slotColor + "40" : colors.border}`,
-          borderRadius: 14,
-          padding: 14,
-          marginBottom: isLast ? 0 : 12,
+          borderRadius: compact ? 10 : 14,
+          padding: compact ? 10 : 14,
+          marginBottom: isLast ? 0 : compact ? 6 : 12,
           transition: "all 0.2s ease",
         }}
       >
         {/* Dish image */}
-        {stop.dishImageUrl && !imgError && (
+        {!compact && stop.dishImageUrl && !imgError && (
           <div style={{
             height: 100, borderRadius: 10, overflow: "hidden",
             backgroundColor: colors.imageBg, marginBottom: 10,
@@ -295,80 +284,96 @@ const StopCard: React.FC<{
         )}
 
         {/* Time slot + time range */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: slotColor, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            {stop.timeSlot}
-          </span>
-          <span style={{ fontSize: 11, color: colors.textSecondary }}>
-            {stop.timeRange}
-          </span>
-        </div>
+        {(stop.timeSlot || stop.timeRange) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            {stop.timeSlot && (
+              <span style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: slotColor, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {stop.timeSlot}
+              </span>
+            )}
+            {stop.timeRange && (
+              <span style={{ fontSize: compact ? 10 : 11, color: colors.textSecondary }}>
+                {stop.timeRange}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Restaurant name + neighborhood */}
-        <div style={{ fontSize: 16, fontWeight: 700, color: colors.text, marginBottom: 2 }}>
+        <div style={{ fontSize: compact ? 13 : 16, fontWeight: 700, color: colors.text, marginBottom: 2 }}>
           {stop.restaurantName}
         </div>
-        <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>
-          📍 {stop.neighborhood} · {stop.walkingNote}
-        </div>
+        {(stop.neighborhood || stop.walkingNote) && (
+          <div style={{ fontSize: compact ? 10 : 12, color: colors.textSecondary, marginBottom: compact ? 4 : 8 }}>
+            {stop.neighborhood ? `📍 ${stop.neighborhood}` : ""} {stop.walkingNote ? `· ${stop.walkingNote}` : ""}
+          </div>
+        )}
 
         {/* Dish highlight */}
         <div style={{
           backgroundColor: colors.accentLight,
           border: `1px solid ${colors.accent}20`,
           borderRadius: 8,
-          padding: "7px 10px",
-          marginBottom: 8,
+          padding: compact ? "5px 8px" : "7px 10px",
+          marginBottom: compact ? 4 : 8,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: colors.accent }}>
+          <div style={{ fontSize: compact ? 11 : 13, fontWeight: 700, color: colors.accent }}>
             🍽️ {stop.dish}
           </div>
-          <div style={{ fontSize: 12, color: colors.textSecondary, lineHeight: 1.4, marginTop: 2 }}>
-            {stop.dishDescription}
-          </div>
+          {!compact && stop.dishDescription && (
+            <div style={{ fontSize: 12, color: colors.textSecondary, lineHeight: 1.4, marginTop: 2 }}>
+              {stop.dishDescription}
+            </div>
+          )}
         </div>
 
-        {/* Cultural context — expandable */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          style={{
-            background: "none", border: "none", padding: 0,
-            cursor: "pointer", fontSize: 12, fontWeight: 600,
-            color: colors.textSecondary, marginBottom: expanded ? 6 : 8,
-          }}
-        >
-          {expanded ? "▾" : "▸"} Why this matters…
-        </button>
-        {expanded && (
-          <div style={{
-            fontSize: 12, color: colors.textSecondary,
-            lineHeight: 1.55, padding: "6px 0 8px",
-            borderTop: `1px solid ${colors.border}`,
-          }}>
-            {stop.culturalContext}
-          </div>
+        {/* Cultural context — expandable (only in full mode) */}
+        {!compact && stop.culturalContext && (
+          <>
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                background: "none", border: "none", padding: 0,
+                cursor: "pointer", fontSize: 12, fontWeight: 600,
+                color: colors.textSecondary, marginBottom: expanded ? 6 : 8,
+              }}
+            >
+              {expanded ? "▾" : "▸"} Why this matters…
+            </button>
+            {expanded && (
+              <div style={{
+                fontSize: 12, color: colors.textSecondary,
+                lineHeight: 1.55, padding: "6px 0 8px",
+                borderTop: `1px solid ${colors.border}`,
+              }}>
+                {stop.culturalContext}
+              </div>
+            )}
+          </>
         )}
 
         {/* Get menu button */}
-        <button
-          onClick={() => onGetMenu(stop)}
-          disabled={isLoading}
-          style={{
-            width: "100%",
-            padding: "7px 0",
-            backgroundColor: colors.accent,
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: isLoading ? "not-allowed" : "pointer",
-            opacity: isLoading ? 0.6 : 1,
-            transition: "opacity 0.15s",
-          }}
-        >
-          {isLoading ? "Loading menu…" : "Full menu →"}
-        </button>
+        {!compact && (
+          <button
+            onClick={() => onGetMenu(stop)}
+            disabled={isLoading}
+            style={{
+              width: "100%",
+              padding: "7px 0",
+              backgroundColor: colors.accent,
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: isLoading ? "not-allowed" : "pointer",
+              opacity: isLoading ? 0.6 : 1,
+              transition: "opacity 0.15s",
+            }}
+          >
+            {isLoading ? "Loading menu…" : "Full menu →"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -383,12 +388,15 @@ export default function TasteItinerary() {
   const { callTool: exploreFoodMap, isPending: isMapLoading } = useCallTool("explore-city-food-map");
   const [loadingStop, setLoadingStop] = useState<string | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
-  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
-  const [locLoading, setLocLoading] = useState(false);
-  const [connError, setConnError] = useState(false);
 
-  // a widget to display the itinerary
-  
+  // Map state — populated after calling explore-city-food-map
+  const [mapData, setMapData] = useState<{
+    stops: MapStop[];
+    centerLat: number;
+    centerLng: number;
+  } | null>(null);
+  const [showMap, setShowMap] = useState(false);
+
   if (isPending) {
     return (
       <McpUseProvider autoSize>
@@ -396,7 +404,6 @@ export default function TasteItinerary() {
           <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
           <div style={{ height: 22, width: 200, backgroundColor: colors.border, borderRadius: 6, marginBottom: 6, animation: "pulse 1.5s infinite" }} />
           <div style={{ height: 14, width: 140, backgroundColor: colors.border, borderRadius: 6, marginBottom: 16, animation: "pulse 1.5s infinite" }} />
-          <div style={{ height: 320, backgroundColor: colors.border, borderRadius: 16, marginBottom: 16, animation: "pulse 1.5s infinite" }} />
           {[1, 2, 3, 4].map((i) => (
             <div key={i} style={{ display: "flex", gap: 16, marginBottom: 12 }}>
               <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: colors.border, animation: "pulse 1.5s infinite" }} />
@@ -408,49 +415,113 @@ export default function TasteItinerary() {
     );
   }
 
-  const { city, stops, centerLat, centerLng } = props;
+  const { city, stops } = props;
 
   const handleGetMenu = (stop: ItineraryStop) => {
     setLoadingStop(stop.restaurantName);
     getMenuDishes(
       { restaurantName: stop.restaurantName, city },
-      { 
-        onSettled: () => setLoadingStop(null),
-        onError: (err: any) => {
-          if (err.message?.includes("not initialized")) setConnError(true);
-        }
-      }
+      { onSettled: () => setLoadingStop(null) }
     );
   };
 
   const handleExploreMap = () => {
+    console.log("[taste-itinerary] Calling explore-city-food-map for:", city);
     exploreFoodMap(
       { city },
       {
+        onSuccess: (data: any) => {
+          console.log("[taste-itinerary] explore-city-food-map SUCCESS:", data);
+          const sc = data?.structuredContent;
+          if (sc) {
+            setMapData({
+              stops: sc.stops ?? [],
+              centerLat: sc.centerLat ?? 0,
+              centerLng: sc.centerLng ?? 0,
+            });
+            setShowMap(true);
+          }
+        },
         onError: (err: any) => {
-          if (err.message?.includes("not initialized")) setConnError(true);
-        }
+          console.error("[taste-itinerary] explore-city-food-map ERROR:", err);
+        },
       }
     );
   };
 
-  const handleLocate = () => {
-    if (!navigator.geolocation) return;
-    setLocLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setLocLoading(false);
-      },
-      () => setLocLoading(false),
-      { enableHighAccuracy: true }
-    );
-  };
+  // ── Side-by-side layout (itinerary + map) ──
+  if (showMap && mapData) {
+    return (
+      <McpUseProvider autoSize>
+        <div style={{ backgroundColor: colors.bg, padding: 20, borderRadius: 20, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+          <style>{`
+            @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+            @keyframes spin { to { transform: rotate(360deg) } }
+          `}</style>
 
+          {/* Header */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: colors.accent, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+              CityBites · Taste Itinerary
+            </div>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: colors.text }}>
+              A day of food in {city}
+            </h2>
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: colors.textSecondary }}>
+              {stops.length} stops · hover a stop to highlight it on the map
+            </p>
+          </div>
+
+          {/* Side-by-side: Itinerary (left) + Map (right) */}
+          <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+            {/* Left — compact timeline */}
+            <div style={{
+              flex: "0 0 340px",
+              maxHeight: 500,
+              overflowY: "auto",
+              paddingRight: 8,
+            }}>
+              {stops.map((stop, i) => (
+                <StopCard
+                  key={`${stop.restaurantName}-${i}`}
+                  stop={stop}
+                  index={i}
+                  isLast={i === stops.length - 1}
+                  colors={colors}
+                  isHighlighted={highlightedIndex === i}
+                  onGetMenu={handleGetMenu}
+                  isLoading={loadingStop === stop.restaurantName && isMenuLoading}
+                  onHover={setHighlightedIndex}
+                  compact
+                />
+              ))}
+            </div>
+
+            {/* Right — Map */}
+            <div style={{ flex: 1, minHeight: 400 }}>
+              <LeafletMap
+                stops={mapData.stops}
+                centerLat={mapData.centerLat}
+                centerLng={mapData.centerLng}
+                colors={colors}
+                highlightedIndex={highlightedIndex}
+                onStopClick={setHighlightedIndex}
+              />
+            </div>
+          </div>
+        </div>
+      </McpUseProvider>
+    );
+  }
+
+  // ── Phase 1: Itinerary only (no map) ──
   return (
     <McpUseProvider autoSize>
       <div style={{ backgroundColor: colors.bg, padding: 20, borderRadius: 20, fontFamily: "system-ui, -apple-system, sans-serif" }}>
-        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
+        <style>{`
+          @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+          @keyframes spin { to { transform: rotate(360deg) } }
+        `}</style>
 
         {/* Header */}
         <div style={{ marginBottom: 16 }}>
@@ -461,72 +532,9 @@ export default function TasteItinerary() {
             A day of food in {city}
           </h2>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: colors.textSecondary }}>
-            {stops.length} stops · hover a stop to see it on the map
+            {stops.length} stops · click "Full menu" to see signature dishes
           </p>
         </div>
-
-        {/* Route Map */}
-        {centerLat !== 0 && centerLng !== 0 && (
-          <div style={{ marginBottom: 16, position: "relative" }}>
-            <LeafletMap
-              stops={stops}
-              centerLat={centerLat}
-              centerLng={centerLng}
-              colors={colors}
-              highlightedIndex={highlightedIndex}
-              userLoc={userLoc}
-              onStopClick={setHighlightedIndex}
-            />
-            {/* Locate Me Button Overlay */}
-            <button
-              onClick={handleLocate}
-              disabled={locLoading}
-              title="Show my current location"
-              style={{
-                position: "absolute",
-                top: 10,
-                right: 10,
-                zIndex: 1000,
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                backgroundColor: colors.card,
-                border: `1px solid ${colors.border}`,
-                color: userLoc ? "#2563eb" : colors.textSecondary,
-                fontSize: 18,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-              }}
-            >
-              {locLoading ? "⏳" : "🎯"}
-            </button>
-          </div>
-        )}
-
-        {/* Connection Error Warning */}
-        {connError && (
-          <div style={{
-            marginBottom: 16,
-            padding: "12px 16px",
-            backgroundColor: "#fee2e2",
-            border: "1px solid #ef444430",
-            borderRadius: 12,
-            color: "#b91c1c",
-            fontSize: 13,
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-          }}>
-            <div style={{ fontWeight: 700 }}>⚠️ Connection lost</div>
-            <div style={{ lineHeight: 1.4 }}>
-              The server session was lost (common during development hot-reloads). 
-              Please <strong>refresh the entire page</strong> to restore connectivity.
-            </div>
-          </div>
-        )}
 
         {/* Timeline */}
         <div>
@@ -554,25 +562,46 @@ export default function TasteItinerary() {
 
         {/* Footer CTA — explore on food map */}
         {stops.length > 0 && (
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${colors.border}`, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              onClick={handleExploreMap}
-              disabled={isMapLoading}
-              style={{
-                padding: "9px 16px",
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${colors.border}` }}>
+            {isMapLoading ? (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "12px 16px",
                 backgroundColor: colors.accentLight,
-                color: colors.accent,
-                border: `1px solid ${colors.accent}30`,
-                borderRadius: 10,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: isMapLoading ? "not-allowed" : "pointer",
-                opacity: isMapLoading ? 0.6 : 1,
-                transition: "opacity 0.15s",
-              }}
-            >
-              {isMapLoading ? "Building food map…" : "🗺️ Explore on the food map"}
-            </button>
+                borderRadius: 12,
+                border: `1px solid ${colors.accent}20`,
+              }}>
+                <div style={{
+                  width: 20, height: 20,
+                  border: `3px solid ${colors.border}`,
+                  borderTopColor: colors.accent,
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
+                }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.accent }}>
+                  Building your food map for {city}...
+                </span>
+              </div>
+            ) : (
+              <button
+                onClick={handleExploreMap}
+                style={{
+                  padding: "9px 16px",
+                  backgroundColor: colors.accentLight,
+                  color: colors.accent,
+                  border: `1px solid ${colors.accent}30`,
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "opacity 0.15s",
+                }}
+              >
+                🗺️ Explore on the food map
+              </button>
+            )}
           </div>
         )}
       </div>

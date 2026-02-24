@@ -112,7 +112,9 @@ server.tool(
 
     return widget({
       props: { city, restaurants },
-      output: text(`Found ${restaurants.length} local food spots in ${city}: ${restaurants.map((r) => r.name).join(", ")}`),
+      output: text(
+        `Found ${restaurants.length} local food spots in ${city}${restaurants.length > 0 ? ":\n" + restaurants.map((r) => `- ${r.name} (${r.neighborhood || r.cuisineType || "Local favorite"})`).join("\n") : "."}`
+      ),
     });
   }
 );
@@ -368,7 +370,10 @@ Spread the stops geographically across different neighborhoods. Return ONLY vali
 
     return widget({
       props: { city, preferences: preferences ?? "", stops, centerLat, centerLng },
-      output: text(`Taste itinerary for ${city}: ${stops.map((s) => `${s.timeSlot} → ${s.restaurantName} (${s.dish})`).join(" | ")}`),
+      output: text(
+        `Taste itinerary for ${city}:\n` +
+        stops.map((s) => `- ${s.timeSlot || "Stop"}: ${s.restaurantName} (${s.dish})`).join("\n")
+      ),
     });
   }
 );
@@ -521,9 +526,10 @@ Each day should have 4 stops (morning, lunch, dinner, late). Use different resta
     }
 
     return widget({
-      props: { city, centerLat, centerLng, stops, days },
+      props: { city, centerLat: centerLat ?? 0, centerLng: centerLng ?? 0, stops, days },
       output: text(
-        `Food map for ${city} (${days.length} day${days.length > 1 ? "s" : ""}) with ${stops.length} stops: ${stops.map((s, i) => `${i + 1}. ${s.name} (${s.signatureDish})`).join(", ")}`
+        `Food map for ${city} (${days.length} day${days.length > 1 ? "s" : ""}) with ${stops.length} stops:\n` +
+        stops.map((s, i) => `${i + 1}. ${s.name} (${s.signatureDish})`).join("\n")
       ),
     });
   }

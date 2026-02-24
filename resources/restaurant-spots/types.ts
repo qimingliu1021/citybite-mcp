@@ -2,11 +2,11 @@ import { z } from "zod";
 
 export const restaurantSchema = z.object({
   name: z.string().describe("Restaurant name"),
-  neighborhood: z.string().describe("Neighborhood or area"),
-  cuisineType: z.string().describe("Type of cuisine"),
-  vibeTagline: z.string().describe("Short vibe description"),
-  whyLocal: z.string().describe("Why locals love it"),
-  url: z.string().describe("Restaurant or source URL"),
+  neighborhood: z.string().optional().describe("Neighborhood or area"),
+  cuisineType: z.string().optional().describe("Type of cuisine"),
+  vibeTagline: z.string().optional().describe("Short vibe description"),
+  whyLocal: z.string().optional().describe("Why locals love it"),
+  url: z.string().optional().describe("Restaurant or source URL"),
 });
 
 export const propSchema = z.object({
