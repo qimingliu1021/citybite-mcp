@@ -507,8 +507,8 @@ const CityFoodMap: React.FC = () => {
         <div style={{ marginBottom: 16, position: "relative" }}>
           <LeafletMap
             stops={activeStops}
-            centerLat={centerLat}
-            centerLng={centerLng}
+            centerLat={centerLat ?? 0}
+            centerLng={centerLng ?? 0}
             colors={colors}
             onStopClick={setHighlightedIndex}
             dayColor={activeDayColor}
